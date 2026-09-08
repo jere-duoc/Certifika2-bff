@@ -1,0 +1,11 @@
+server:
+  port: 3000
+
+spring:
+  application:
+    name: bff
+
+# Configuración hacia donde apunta el Gateway
+api:
+  gateway:
+    url: ${API_GATEWAY_URL:http://localhost:8080}
