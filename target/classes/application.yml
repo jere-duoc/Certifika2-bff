@@ -1,0 +1,41 @@
+server:
+  port: ${SERVER_PORT:8084}
+  forward-headers-strategy: framework
+  servlet:
+    session:
+      timeout: 8h
+      cookie:
+        name: CERTIFIKA2_BFF_SESSION
+        http-only: true
+        secure: ${SESSION_COOKIE_SECURE:false}
+        same-site: ${SESSION_COOKIE_SAME_SITE:lax}
+
+spring:
+  application:
+    name: bff
+  security:
+    oauth2:
+      client:
+        registration:
+          cognito:
+            provider: cognito
+            client-id: ${COGNITO_CLIENT_ID}
+            client-secret: ${COGNITO_CLIENT_SECRET}
+            client-authentication-method: client_secret_basic
+            authorization-grant-type: authorization_code
+            redirect-uri: ${COGNITO_REDIRECT_URI:http://localhost:8084/api/auth/cognito/callback}
+            scope: openid,email
+        provider:
+          cognito:
+            issuer-uri: ${COGNITO_ISSUER_URI}
+            user-name-attribute: sub
+
+bff:
+  frontend-url: ${FRONTEND_URL:http://localhost:3000}
+  api-manager-url: ${API_MANAGER_URL:http://localhost:8080}
+  cognito-domain: ${COGNITO_DOMAIN}
+  cognito-client-id: ${COGNITO_CLIENT_ID}
+
+logging:
+  file:
+    name: ${LOGGING_FILE_NAME:logs/bff.log}
