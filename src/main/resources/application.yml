@@ -24,7 +24,7 @@ spring:
             client-authentication-method: client_secret_basic
             authorization-grant-type: authorization_code
             redirect-uri: ${COGNITO_REDIRECT_URI:http://localhost:8084/api/auth/cognito/callback}
-            scope: openid,email
+            scope: openid,email,profile
         provider:
           cognito:
             issuer-uri: ${COGNITO_ISSUER_URI}
