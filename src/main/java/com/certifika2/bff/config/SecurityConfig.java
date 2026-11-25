@@ -17,8 +17,6 @@ import org.springframework.security.oauth2.client.OAuth2AuthorizedClientProvider
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientProviderBuilder;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientService;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
-import org.springframework.security.oauth2.client.web.DefaultOAuth2AuthorizationRequestResolver;
-import org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestCustomizers;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -35,15 +33,7 @@ public class SecurityConfig {
             ClientRegistrationRepository registrations,
             BffProperties properties
     ) throws Exception {
-        var resolver = new DefaultOAuth2AuthorizationRequestResolver(
-                registrations,
-                "/api/oauth2/authorization"
-        );
-        resolver.setAuthorizationRequestCustomizer(builder -> {
-            OAuth2AuthorizationRequestCustomizers.withPkce().accept(builder);
-            builder.additionalParameters(parameters ->
-                    parameters.put("identity_provider", "Google"));
-        });
+        var resolver = new ProviderAuthorizationRequestResolver(registrations);
 
         http
                 .cors(Customizer.withDefaults())
@@ -51,6 +41,7 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/bff/certificados/verificar/*").permitAll()
                         .requestMatchers(
                                 "/api/auth/cognito",
                                 "/api/auth/cognito/callback",
@@ -103,6 +94,7 @@ public class SecurityConfig {
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("Content-Type", "Accept", "X-Requested-With"));
         configuration.setAllowCredentials(true);
+        configuration.setExposedHeaders(List.of("Content-Disposition"));
         configuration.setMaxAge(3600L);
 
         var source = new UrlBasedCorsConfigurationSource();

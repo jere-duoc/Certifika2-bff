@@ -27,7 +27,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 @RestController
 public class BffProxyController {
     private static final String BFF_PREFIX = "/api/bff/";
-    private static final Set<String> ALLOWED_SERVICES = Set.of("usuarios", "cursos", "chat", "admin");
+    private static final Set<String> ALLOWED_SERVICES = Set.of("usuarios", "cursos", "chat", "admin", "certificados");
 
     private final OAuth2AuthorizedClientManager authorizedClientManager;
     private final BffProperties properties;
@@ -56,12 +56,17 @@ public class BffProxyController {
             return ResponseEntity.notFound().build();
         }
 
-        OAuth2AuthorizedClient client = authorizedClientManager.authorize(
+        boolean publicVerification = request.getMethod().equals("GET")
+                && relativePath.matches("certificados/verificar/[a-zA-Z0-9-]{1,128}");
+        if (!publicVerification && !(authentication instanceof OAuth2AuthenticationToken)) {
+            return ResponseEntity.status(401).build();
+        }
+        OAuth2AuthorizedClient client = publicVerification ? null : authorizedClientManager.authorize(
                 OAuth2AuthorizeRequest.withClientRegistrationId("cognito")
                         .principal(authentication)
                         .build()
         );
-        if (client == null) {
+        if (!publicVerification && client == null) {
             return ResponseEntity.status(401).build();
         }
 
@@ -99,9 +104,8 @@ public class BffProxyController {
 
         var requestSpec = restClient.method(method)
                 .uri(target)
-                .header(HttpHeaders.AUTHORIZATION,
-                        "Bearer " + client.getAccessToken().getTokenValue())
                 .accept(MediaType.ALL);
+        if (client != null) requestSpec.header(HttpHeaders.AUTHORIZATION, "Bearer " + client.getAccessToken().getTokenValue());
         if (authentication instanceof OAuth2AuthenticationToken oauth
                 && oauth.getPrincipal() instanceof OidcUser oidcUser) {
             requestSpec.header("X-OIDC-Display-Name", firstNonBlank(
@@ -121,6 +125,8 @@ public class BffProxyController {
                 response.contentType(upstreamContentType);
             }
             response.header(HttpHeaders.CACHE_CONTROL, "no-store");
+            String disposition = upstreamResponse.getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION);
+            if (disposition != null) response.header(HttpHeaders.CONTENT_DISPOSITION, disposition);
             return response.body(upstreamResponse.getBody().readAllBytes());
         });
     }
