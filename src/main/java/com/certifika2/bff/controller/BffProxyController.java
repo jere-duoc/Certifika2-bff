@@ -27,7 +27,9 @@ import org.springframework.web.util.UriComponentsBuilder;
 @RestController
 public class BffProxyController {
     private static final String BFF_PREFIX = "/api/bff/";
-    private static final Set<String> ALLOWED_SERVICES = Set.of("usuarios", "cursos", "chat", "admin");
+    private static final Set<String> ALLOWED_SERVICES = Set.of("usuarios", "cursos", "chat", "certificados", "admin");
+    /** Rutas que se reenvían sin sesión (verificación pública de certificados). */
+    private static final String RUTA_PUBLICA_VERIFICACION = "certificados/verificar/";
 
     private final OAuth2AuthorizedClientManager authorizedClientManager;
     private final BffProperties properties;
@@ -56,12 +58,18 @@ public class BffProxyController {
             return ResponseEntity.notFound().build();
         }
 
-        OAuth2AuthorizedClient client = authorizedClientManager.authorize(
-                OAuth2AuthorizeRequest.withClientRegistrationId("cognito")
-                        .principal(authentication)
-                        .build()
-        );
-        if (client == null) {
+        boolean rutaPublica = HttpMethod.GET.matches(request.getMethod())
+                && relativePath.startsWith(RUTA_PUBLICA_VERIFICACION);
+        boolean conSesion = authentication instanceof OAuth2AuthenticationToken;
+        OAuth2AuthorizedClient client = null;
+        if (conSesion) {
+            client = authorizedClientManager.authorize(
+                    OAuth2AuthorizeRequest.withClientRegistrationId("cognito")
+                            .principal(authentication)
+                            .build()
+            );
+        }
+        if (client == null && !rutaPublica) {
             return ResponseEntity.status(401).build();
         }
 
@@ -99,9 +107,11 @@ public class BffProxyController {
 
         var requestSpec = restClient.method(method)
                 .uri(target)
-                .header(HttpHeaders.AUTHORIZATION,
-                        "Bearer " + client.getAccessToken().getTokenValue())
                 .accept(MediaType.ALL);
+        if (client != null) {
+            requestSpec.header(HttpHeaders.AUTHORIZATION,
+                    "Bearer " + client.getAccessToken().getTokenValue());
+        }
         if (authentication instanceof OAuth2AuthenticationToken oauth
                 && oauth.getPrincipal() instanceof OidcUser oidcUser) {
             requestSpec.header("X-OIDC-Display-Name", firstNonBlank(
@@ -119,6 +129,11 @@ public class BffProxyController {
             MediaType upstreamContentType = upstreamResponse.getHeaders().getContentType();
             if (upstreamContentType != null) {
                 response.contentType(upstreamContentType);
+            }
+            // Descargas de certificados (PDF/PNG): conservar el nombre de archivo
+            String disposition = upstreamResponse.getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION);
+            if (disposition != null) {
+                response.header(HttpHeaders.CONTENT_DISPOSITION, disposition);
             }
             response.header(HttpHeaders.CACHE_CONTROL, "no-store");
             return response.body(upstreamResponse.getBody().readAllBytes());

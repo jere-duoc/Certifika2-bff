@@ -59,6 +59,8 @@ public class SecurityConfig {
                                 "/api/oauth2/authorization/**",
                                 "/error"
                         ).permitAll()
+                        // Verificación pública de certificados (sin login)
+                        .requestMatchers(HttpMethod.GET, "/api/bff/certificados/verificar/**").permitAll()
                         .requestMatchers("/api/bff/**").authenticated()
                         .anyRequest().denyAll()
                 )
@@ -102,6 +104,8 @@ public class SecurityConfig {
         configuration.setAllowedOrigins(List.of(properties.frontendUrl()));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("Content-Type", "Accept", "X-Requested-With"));
+        // Permite que el front lea el nombre del archivo al descargar certificados
+        configuration.setExposedHeaders(List.of("Content-Disposition"));
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);
 
